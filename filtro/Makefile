@@ -60,6 +60,14 @@ endif
 SRCS = $(wildcard src/*.vhd) \
   $(wildcard src/*.v)
 
+SIM_DIR = sim
+SIM_OUT_DIR = $(SIM_DIR)/out
+SIM_MEM = $(SIM_DIR)/imagem.mem
+SIM_SRCS = $(SIM_DIR)/tb_pipeline.sv $(SIM_DIR)/sim_rom.v $(SIM_DIR)/stubs_top.v src/top.v
+SIM_EXE = $(SIM_DIR)/obj_dir/Vtb_pipeline
+
+.PHONY: all sim sim-clean clean map fit asm sta smart program program-pof
+
 ###################################################################
 # Main Targets
 #
@@ -69,6 +77,13 @@ SRCS = $(wildcard src/*.vhd) \
 ###################################################################
 
 all: smart.log $(PROJECT).asm.rpt $(PROJECT).sta.rpt 
+
+sim: $(SIM_EXE)
+	mkdir -p $(SIM_OUT_DIR)
+	./$(SIM_EXE)
+
+sim-clean:
+	$(RM) -rf $(SIM_DIR)/obj_dir $(SIM_DIR)/out $(SIM_MEM)
 
 clean:
 	$(RM) -rf *.txt *.done *.qws *.sld *.rpt *.chg smart.log *.htm *.eqn *.pin *.sof *.pof greybox_tmp db incremental_db output_files *.summary *.smsg *.jdi $(ASSIGNMENT_FILES)
@@ -143,6 +158,24 @@ sta.chg:
 	$(STAMP) sta.chg
 asm.chg:
 	$(STAMP) asm.chg
+
+$(SIM_MEM): src/imagem.mif
+	mkdir -p $(SIM_DIR)
+	awk 'BEGIN { in_content = 0 } \
+		/^CONTENT BEGIN/ { in_content = 1; next } \
+		/^END;/ { in_content = 0 } \
+		in_content && /:/ { \
+			line = $$0; \
+			gsub(/[[:space:]]/, "", line); \
+			split(line, parts, ":"); \
+			data = parts[2]; \
+			sub(/;.*/, "", data); \
+			print data; \
+		}' $< > $@
+
+$(SIM_EXE): $(SIM_SRCS) $(SIM_MEM)
+	verilator --binary --timing --sv -Wno-fatal -Mdir $(SIM_DIR)/obj_dir \
+		--top-module tb_pipeline $(SIM_SRCS)
 
 ###################################################################
 # Programming the device

@@ -1,0 +1,94 @@
+#!/bin/bash
+
+oct="octave"
+bench_mc="bench_mc.m"
+bench_lb="bench_lb.m"
+
+ne=5
+
+if ! command -v "$oct" >/dev/null 2>&1; then
+	echo "octave nao localizado"
+	exit 1
+fi
+
+if [ ! -f "$bench_mc" ]; then
+	echo "benchmark nao localizado"
+	exit 1
+fi
+
+if [[ -n $1 ]]; then
+	if [[ ! $1 =~ ^[0-9]+$ || $1 -gt 20 || $1 -lt 1 ]]; then
+		echo "argumento errado, deve ser um numero presente em [1,20]"
+		exit 1
+	fi
+	ne="$1"
+fi
+
+exec_benchmark() {
+
+	local ne=$1
+	local oct=$2
+	local bench=$3
+
+	local n res 
+	local t_ser v_ser diff_ser
+	local t_vet v_vet diff_vet
+	
+	pi=3.141592653589793
+	mt_ser=0
+	me_ser=0
+
+	mt_vet=0
+	me_vet=0
+
+	for ((n=1; n<=ne; n++));
+	do
+		if ! res=$("$oct" "$bench"); then
+			echo "erro durante iteracao $n" >&2
+			exit 1
+		fi
+		t_ser=$(echo "$res" | awk '/time/ {print $4}' | sed -n '1p')
+		v_ser=$(echo "$res" | awk -F' = ' '/ans/ {print $2}' | sed -n '1p') 
+
+		t_vet=$(echo "$res" | awk '/time/ {print $4}' | sed -n '2p')
+		v_vet=$(echo "$res" | awk -F' = ' '/ans/ {print $2}' | sed -n '2p') 
+
+		diff_ser=$(echo "x = $pi - $v_ser; if(x < 0) -x else x" | bc -l)
+		diff_vet=$(echo "x = $pi - $v_vet; if(x < 0) -x else x" | bc -l)
+		
+		me_ser=$(echo "$me_ser + $diff_ser" | bc -l)
+		mt_ser=$(echo "$mt_ser + $t_ser" | bc -l)
+		
+		me_vet=$(echo "$me_vet + $diff_vet" | bc -l)
+		mt_vet=$(echo "$mt_vet + $t_vet" | bc -l)
+	done
+
+	echo "$(echo "scale=6; $mt_ser / $ne" | bc -l) $(echo "scale=6; $me_ser / $ne" | bc -l) \
+		  $(echo "scale=6; $mt_vet / $ne" | bc -l) $(echo "scale=6; $me_vet / $ne" | bc -l)"	
+}
+
+evaluate_bench() {
+
+	local ne=$1
+	local oct=$2
+	local bench=$3
+
+	read -r mt_ser me_ser mt_vet me_vet < <(exec_benchmark "$ne" "$oct" "$bench")
+
+	echo "numero de execs: $ne"
+	echo "execucao serial"
+	echo "media do tempo: $mt_ser"
+	echo "media do erro: $me_ser"
+
+	echo "execucao vetorial"
+	echo "media do tempo: $mt_vet"
+	echo "media do erro: $me_vet"
+
+	echo "speedup: $(echo "scale=6; $mt_ser / $mt_vet" | bc -l)"
+	echo "diferenca absoluta entre erros: $(echo "x = $me_ser - $me_vet; if(x < 0) -x else x" | bc -l)"
+}
+
+evaluate_bench "$ne" "$oct" "$bench_mc"
+evaluate_bench "$ne" "$oct" "$bench_lb"
+
+
