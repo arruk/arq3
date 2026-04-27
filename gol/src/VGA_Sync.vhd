@@ -5,8 +5,8 @@ use  IEEE.STD_LOGIC_UNSIGNED.all;
 -- Module Generates Video Sync Signals for Video Montor Interface
 -- RGB and Sync outputs tie directly to monitor conector pins
 ENTITY VGA_SYNC IS
-	PORT(	clock_50Mhz, red, green, blue		: IN	STD_LOGIC;
-			red_out, green_out, blue_out, horiz_sync_out, 
+	PORT(	clock_50Mhz, reset, red, green, blue		: IN	STD_LOGIC;
+			red_out, green_out, blue_out, horiz_sync_out,
 			vert_sync_out, video_on, pixel_clock	: OUT	STD_LOGIC;
 			pixel_row, pixel_column: OUT STD_LOGIC_VECTOR(9 DOWNTO 0));
 END VGA_SYNC;
@@ -58,9 +58,25 @@ PROCESS
 BEGIN
 	WAIT UNTIL(pixel_clock_int'EVENT) AND (pixel_clock_int='1');
 
+	IF (reset = '1') THEN
+		h_count <= "0000000000";
+		v_count <= "0000000000";
+		horiz_sync <= '1';
+		vert_sync <= '1';
+		video_on_h <= '0';
+		video_on_v <= '0';
+		pixel_column <= "0000000000";
+		pixel_row <= "0000000000";
+		horiz_sync_out <= '1';
+		vert_sync_out <= '1';
+		red_out <= '0';
+		green_out <= '0';
+		blue_out <= '0';
+	ELSE
+
 --Generate Horizontal and Vertical Timing Signals for Video Signal
 -- H_count counts pixels (#pixels across + extra time for sync signals)
--- 
+--
 --  Horiz_sync  ------------------------------------__________--------
 --  H_count     0                 #pixels            sync low      end
 --
@@ -120,6 +136,8 @@ BEGIN
 		red_out <= red AND video_on_int;
 		green_out <= green AND video_on_int;
 		blue_out <= blue AND video_on_int;
+
+	END IF;
 
 END PROCESS;
 END a;
