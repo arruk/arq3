@@ -1,3 +1,5 @@
+`timescale 1 ps / 1 ps
+
 // megafunction wizard: %ROM: 1-PORT%
 // GENERATION: STANDARD
 // VERSION: WM1.0
