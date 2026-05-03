@@ -1,6 +1,8 @@
 `timescale 1 ps / 1 ps
 
-module top (
+module top #(
+	parameter IMAGE_FILE = "src/image.mem"
+) (
 	input         CLOCK_50,
 	input  [9:0]  SW,
 
@@ -13,13 +15,11 @@ module top (
 	output        VGA_BLANK_N,
 	output        VGA_SYNC_N
 );
-	localparam integer IMG_W = 20;
-	localparam integer IMG_H = 20;
-	localparam integer VGA_SCALE = 16;
-	localparam integer VGA_OFFSET_X = 80;
-	localparam integer VGA_OFFSET_Y = 0;
-	localparam integer GOL_DELAY_W = 9;
-	localparam [GOL_DELAY_W-1:0] GOL_UPDATE_DELAY_FRAMES = 9'd60;
+	localparam integer IMG_W = 256;
+	localparam integer IMG_H = 128;
+	localparam integer VGA_SCALE = 2;
+	localparam integer VGA_OFFSET_X = 64;
+	localparam integer VGA_OFFSET_Y = 112;
 
 	localparam integer COL_W = $clog2(IMG_W + 1);
 	localparam integer ROW_W = $clog2(IMG_H + 1);
@@ -27,28 +27,55 @@ module top (
 	wire pclk;
 	wire reset = SW[0];
 
-	wire vga_frame_tick;
-	wire vga_update_valid;
-	wire [COL_W-1:0] vga_update_column;
-	wire [ROW_W-1:0] vga_update_row;
-	wire vga_update_pixel;
-	wire vga_update_ready;
+	wire source_valid;
+	wire source_ready;
+	wire [(COL_W + ROW_W + 1)-1:0] source_data;
+	wire sink_valid;
+	wire sink_ready;
+	wire [(COL_W + ROW_W + 1)-1:0] sink_data;
 
-	vga_display #(
+	mesh_image_source #(
+		.IMG_W(IMG_W),
+		.IMG_H(IMG_H),
+		.COL_W(COL_W),
+		.ROW_W(ROW_W),
+		.INIT_FILE(IMAGE_FILE)
+	) image_source_inst (
+		.clk(pclk),
+		.reset(reset),
+		.out_valid(source_valid),
+		.out_ready(source_ready),
+		.out_data(source_data)
+	);
+
+	mesh_grid_16x16 #(
+		.IMG_W(IMG_W),
+		.IMG_H(IMG_H),
+		.COL_W(COL_W),
+		.ROW_W(ROW_W)
+	) mesh_grid_inst (
+		.clk(pclk),
+		.reset(reset),
+		.source_valid(source_valid),
+		.source_ready(source_ready),
+		.source_data(source_data),
+		.sink_valid(sink_valid),
+		.sink_ready(sink_ready),
+		.sink_data(sink_data)
+	);
+
+	mesh_vga_stream_display #(
 		.IMG_W(IMG_W),
 		.IMG_H(IMG_H),
 		.SCALE(VGA_SCALE),
 		.OFFSET_X(VGA_OFFSET_X),
 		.OFFSET_Y(VGA_OFFSET_Y)
-	) vga_display_inst (
+	) vga_stream_display_inst (
 		.clock_50(CLOCK_50),
 		.reset(reset),
-		.update_ready(vga_update_ready),
-		.update_valid(vga_update_valid),
-		.update_column(vga_update_column),
-		.update_row(vga_update_row),
-		.update_pixel(vga_update_pixel),
-		.frame_tick(vga_frame_tick),
+		.in_valid(sink_valid),
+		.in_ready(sink_ready),
+		.in_data(sink_data),
 		.pixel_clock(pclk),
 
 		.VGA_R(VGA_R),

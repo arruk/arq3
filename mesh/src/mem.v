@@ -114,6 +114,10 @@ module double_framebuffer #(
 
 	wire display_read_pixel0;
 	wire compute_read_pixel0;
+	wire write_bank0 = write_in_bounds && !write_bank;
+	wire write_bank1 = write_in_bounds && write_bank;
+	wire compute_read_bank0 = compute_read_in_bounds && !read_bank && !write_bank0;
+	wire compute_read_bank1 = compute_read_in_bounds && read_bank && !write_bank1;
 
 	true_dual_port_ram #(
 		.ADDR_W(ADDR_W),
@@ -122,18 +126,18 @@ module double_framebuffer #(
 	) memory0 (
 		.clk(clk),
 
-		.port_a_write_enable (write_in_bounds && !write_bank),
+		.port_a_write_enable (1'b0),
 		.port_a_read_enable  (display_read_in_bounds && !read_bank),
-		.port_a_write_addr   (write_addr),
+		.port_a_write_addr   ({ADDR_W{1'b0}}),
 		.port_a_read_addr    (display_read_addr),
-		.port_a_write_data   (write_pixel),
+		.port_a_write_data   (1'b0),
 		.port_a_read_data    (display_read_pixel0),
 
-		.port_b_write_enable (1'b0),
-		.port_b_read_enable  (compute_read_in_bounds && !read_bank),
-		.port_b_write_addr   ({(ADDR_W){1'b0}}),
+		.port_b_write_enable (write_bank0),
+		.port_b_read_enable  (compute_read_bank0),
+		.port_b_write_addr   (write_addr),
 		.port_b_read_addr    (compute_read_addr),
-		.port_b_write_data   (1'b0),
+		.port_b_write_data   (write_pixel),
 		.port_b_read_data    (compute_read_pixel0)
 	);
 
@@ -147,18 +151,18 @@ module double_framebuffer #(
 	) memory1 (
 		.clk(clk),
 
-		.port_a_write_enable (write_in_bounds && write_bank),
+		.port_a_write_enable (1'b0),
 		.port_a_read_enable  (display_read_in_bounds && read_bank),
-		.port_a_write_addr   (write_addr),
+		.port_a_write_addr   ({ADDR_W{1'b0}}),
 		.port_a_read_addr    (display_read_addr),
-		.port_a_write_data   (write_pixel),
+		.port_a_write_data   (1'b0),
 		.port_a_read_data    (display_read_pixel1),
 
-		.port_b_write_enable (1'b0),
-		.port_b_read_enable  (compute_read_in_bounds && read_bank),
-		.port_b_write_addr   ({(ADDR_W){1'b0}}),
+		.port_b_write_enable (write_bank1),
+		.port_b_read_enable  (compute_read_bank1),
+		.port_b_write_addr   (write_addr),
 		.port_b_read_addr    (compute_read_addr),
-		.port_b_write_data   (1'b0),
+		.port_b_write_data   (write_pixel),
 		.port_b_read_data    (compute_read_pixel1)
 	);
 

@@ -65,7 +65,8 @@ module window_stream #(
 	reg [2:0] s5_w_c1;
 	reg [2:0] s5_w_c2;
     reg [COL_W-1:0] s5_center_c;
-    reg [ROW_W-1:0] s5_center_r;
+	reg [ROW_W-1:0] s5_center_r;
+	reg s5_valid = 1'b0;
 	reg s5_col_v0 = 1'b0;
 	reg s5_col_v1 = 1'b0;
 	reg s5_col_v2 = 1'b0;
@@ -145,6 +146,7 @@ module window_stream #(
 
 	always @(posedge clk) begin
 		if (reset) begin
+			s5_valid <= 1'b0;
 			s5_col_v0 <= 1'b0;
 			s5_col_v1 <= 1'b0;
 			s5_col_v2 <= 1'b0;
@@ -165,10 +167,12 @@ module window_stream #(
 				s5_col_rows0 <= s4_has_3_rows;
 				s5_col_rows1 <= 1'b0;
 				s5_col_rows2 <= 1'b0;
+				s5_valid <= 1'b0;
 			end else begin
 				s5_w_c0 <= s4_w_c0;
 				s5_w_c1 <= s5_w_c0;
 				s5_w_c2 <= s5_w_c1;
+				s5_valid <= s5_col_v0;
 				s5_col_v0 <= 1'b1;
 				s5_col_v1 <= s5_col_v0;
 				s5_col_v2 <= s5_col_v1;
@@ -177,12 +181,7 @@ module window_stream #(
 				s5_col_rows2 <= s5_col_rows1;
 			end
 		end else begin
-			s5_col_v0 <= 1'b0;
-			s5_col_v1 <= 1'b0;
-			s5_col_v2 <= 1'b0;
-			s5_col_rows0 <= 1'b0;
-			s5_col_rows1 <= 1'b0;
-			s5_col_rows2 <= 1'b0;
+			s5_valid <= 1'b0;
 		end
 	end
 
@@ -194,9 +193,8 @@ module window_stream #(
 	assign w_col2 = s5_w_c2;
 	assign center_row = s5_center_r;
 	assign center_column = s5_center_c;
-	assign center_valid = s5_col_v1;
-	assign window_valid = s5_has_3_cols && s5_has_3_rows;
+	assign center_valid = s5_valid;
+	assign window_valid = s5_valid && s5_has_3_cols && s5_has_3_rows;
 	assign border = (s5_center_c == COL_ZERO) || (s5_center_c == LAST_COL) || (s5_center_r == ROW_ZERO) || (s5_center_r == LAST_ROW);
 
 endmodule
-

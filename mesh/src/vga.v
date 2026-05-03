@@ -10,12 +10,10 @@ module vga_display #(
 ) (
 	input clock_50,
 	input reset,
-	output update_ready,
-	input update_valid,
-	input [($clog2(IMG_W + 1))-1:0] update_column,
-	input [($clog2(IMG_H + 1))-1:0] update_row,
-	input update_pixel,
-	output reg frame_tick,
+	input write_enable,
+	input [($clog2(IMG_W + 1))-1:0] write_column,
+	input [($clog2(IMG_H + 1))-1:0] write_row,
+	input write_pixel,
 	output pixel_clock,
 	output [7:0] VGA_R,
 	output [7:0] VGA_G,
@@ -73,57 +71,32 @@ module vga_display #(
 	wire [9:0] scaled_row    = (pixel_row - DISPLAY_TOP) >> CLOG_SCALE;
 	wire [COL_W-1:0] framebuffer_read_column = scaled_column[COL_W-1:0];
 	wire [ROW_W-1:0] framebuffer_read_row = scaled_row[ROW_W-1:0];
-	wire [14:0] rom_address = display_in_bounds ? image_address(framebuffer_read_column, framebuffer_read_row) : 15'd0;
-	wire rom_pixel;
-	wire display_pixel = vga_buffer_valid ? display_fb_pixel : rom_pixel;
+	wire display_pixel = display_fb_pixel;
 
-	vga_framebuffer #(
+	double_framebuffer #(
 		.IMG_W(IMG_W),
 		.IMG_H(IMG_H)
 	) framebuffer_inst (
 		.clk   (pclk),
 		.reset (reset),
+		.read_bank(1'b0),
+		.write_bank(1'b0),
 
-		.read_enable (vga_buffer_valid && display_in_bounds),
-		.read_column (framebuffer_read_column),
-		.read_row    (framebuffer_read_row),
-		.read_pixel  (display_fb_pixel),
+		.display_read_enable (display_in_bounds),
+		.display_read_column (framebuffer_read_column),
+		.display_read_row    (framebuffer_read_row),
+		.display_read_pixel  (display_fb_pixel),
 
-			.write_enable (update_valid && update_ready),
-		.write_column (update_column),
-		.write_row    (update_row),
-		.write_pixel  (update_pixel)
+		.compute_read_enable (1'b0),
+		.compute_read_column ({COL_W{1'b0}}),
+		.compute_read_row    ({ROW_W{1'b0}}),
+		.compute_read_pixel  (),
+
+		.write_enable (write_enable),
+		.write_column (write_column),
+		.write_row    (write_row),
+		.write_pixel  (write_pixel)
 	);
-
-	reg vga_buffer_valid = 1'b0;
-	always @(posedge pclk) begin
-		if (reset) begin
-			vga_buffer_valid <= 1'b0;
-		end else if (update_valid && update_ready &&
-		             (update_column == (IMG_W[COL_W-1:0] - {{(COL_W-1){1'b0}}, 1'b1})) &&
-		             (update_row == (IMG_H[ROW_W-1:0] - {{(ROW_W-1){1'b0}}, 1'b1}))) begin
-			vga_buffer_valid <= 1'b1;
-		end
-	end
-
-	rom rom_inst_initial_display (
-		.address(rom_address),
-		.clock(pclk),
-		.q(rom_pixel)
-	);
-
-
-	wire frame_start = on && (pixel_column == 10'd0) && (pixel_row == 10'd0);
-	reg frame_start_d = 1'b0;
-	always @(posedge pclk) begin
-		if (reset) begin
-			frame_start_d <= 1'b0;
-			frame_tick <= 1'b0;
-		end else begin
-			frame_start_d <= frame_start;
-			frame_tick <= frame_start && !frame_start_d;
-		end
-	end
 
 	assign VGA_R = {8{red_out}};
 	assign VGA_G = {8{green_out}};
@@ -133,22 +106,6 @@ module vga_display #(
 	assign VGA_SYNC_N = 1'b0;
 	
 	assign pixel_clock = pclk;
-
-	assign update_ready = on && !display_in_bounds;
-
-	function [14:0] image_address;
-		input [COL_W-1:0] column;
-		input [ROW_W-1:0] row;
-		reg [31:0] column_ext;
-		reg [31:0] row_ext;
-		reg [31:0] linear_address;
-		begin
-			column_ext = {{(32-COL_W){1'b0}}, column};
-			row_ext = {{(32-ROW_W){1'b0}}, row};
-			linear_address = (row_ext * IMG_W) + column_ext;
-			image_address = linear_address[14:0];
-		end
-	endfunction
 
 endmodule
 
