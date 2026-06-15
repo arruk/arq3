@@ -6,14 +6,15 @@ DE10-Standard:
 ```text
 Host x86_64
   -> cross-compiler ARM hard-float
-  -> sysroot do Linux LXDE Terasic
+  -> SDK Yocto/Terasic ou sysroot local do Linux LXDE
   -> SDL2 + SDL2_mixer + Chocolate Doom
-  -> scp ou pendrive
+  -> pacote .tar.gz no pendrive
   -> HPS ARMv7 da DE10-Standard
 ```
 
 O pacote gerado contém SDL2 e SDL2_mixer privadas. X11, ALSA, `glibc` e
 demais componentes básicos continuam vindo do BSP LXDE da placa.
+Nenhuma etapa do fluxo principal conecta à placa por SSH.
 
 ## Versões fixadas
 
@@ -33,7 +34,7 @@ Em Debian/Ubuntu:
 
 ```bash
 sudo apt install \
-  autoconf automake libtool pkg-config make git file openssh-client \
+  autoconf automake libtool pkg-config make git file \
   gcc-arm-linux-gnueabihf
 ```
 
@@ -47,78 +48,42 @@ Para maior compatibilidade com o BSP antigo, prefira o SDK Yocto/Terasic que
 gerou a imagem LXDE. A toolchain Debian é uma alternativa, mas ainda deve
 usar o sysroot exato da placa.
 
-## 2. Configurar a placa
-
-Conecte a DE10-Standard por Ethernet e descubra o endereço:
-
-```bash
-ip addr show eth0
-```
-
-No host:
+## 2. Configurar o cross-compile
 
 ```bash
 cp config/cross.env.example config/cross.env
 ```
 
-Edite:
-
-```bash
-TARGET_HOST=root@192.168.1.50
-TARGET_DIR=/home/root/chocolate-doom
-```
-
 `config/cross.env` não é versionado.
 
-Teste o SSH:
+Há duas opções locais para fornecer headers e bibliotecas ARM:
 
-```bash
-ssh root@192.168.1.50 uname -a
-```
-
-## 3. Inspecionar o BSP
-
-```bash
-./scripts/cross/target-report.sh
-```
-
-O relatório verifica arquitetura, `glibc`, framebuffer, ALSA e a presença de:
-
-```text
-/usr/include/stdio.h
-/usr/include/X11/Xlib.h
-/usr/include/alsa/asoundlib.h
-libX11.so
-libasound.so
-libc.so
-crt1.o
-```
-
-## 4. Obter o sysroot
-
-Tente sincronizar o sistema da própria placa:
-
-```bash
-./scripts/cross/sync-sysroot.sh
-```
-
-O resultado fica em `build/sysroot` e é validado automaticamente.
-
-Uma imagem runtime frequentemente possui bibliotecas, mas não headers e
-links de desenvolvimento. Se a validação falhar, será necessário instalar o
-SDK Yocto correspondente ao BSP. Configure então:
+1. SDK Yocto/Terasic instalado no computador:
 
 ```bash
 YOCTO_SDK_ENV=/opt/poky/.../environment-setup-...
 ```
 
-Quando `YOCTO_SDK_ENV` está definido, o script usa automaticamente variáveis
-como `CC`, `TARGET_PREFIX` e `SDKTARGETSYSROOT` fornecidas pelo SDK.
+2. Rootfs ARM disponível localmente, por exemplo a partição Linux do
+   microSD montada no computador:
+
+```bash
+./scripts/cross/sync-sysroot.sh /media/$USER/rootfs
+```
+
+O sysroot importado fica em `build/sysroot` e é validado automaticamente.
+Também é possível definir outro caminho em `SYSROOT`.
+
+Uma imagem runtime frequentemente possui bibliotecas, mas não headers e
+links de desenvolvimento. Se a validação do rootfs falhar, use o SDK Yocto
+correspondente ao BSP. Quando `YOCTO_SDK_ENV` está definido, o build usa
+automaticamente `CC`, `TARGET_PREFIX` e `SDKTARGETSYSROOT` fornecidos pelo
+SDK.
 
 Não use headers de Debian ARM com a `glibc` do Yocto: isso pode produzir um
 binário que compila no host e falha ao iniciar na placa.
 
-## 5. Compilar
+## 3. Compilar
 
 O comando completo é:
 
@@ -168,29 +133,7 @@ SDL_AUDIODRIVER=alsa
 LD_LIBRARY_PATH=<pacote>/lib
 ```
 
-## 6. Enviar por Ethernet
-
-Use um IWAD obtido legalmente, como `doom1.wad`, ou Freedoom:
-
-```bash
-./scripts/cross/deploy-scp.sh /caminho/doom1.wad
-```
-
-Sem copiar WAD:
-
-```bash
-./scripts/cross/deploy-scp.sh
-```
-
-Na placa:
-
-```bash
-cd /home/root/chocolate-doom
-./run-chocolate-setup.sh
-./run-chocolate-doom.sh -iwad doom1.wad
-```
-
-## 7. Enviar por pendrive
+## 4. Enviar por pendrive
 
 No host, com o pendrive montado:
 
@@ -201,16 +144,20 @@ No host, com o pendrive montado:
 Na placa:
 
 ```bash
-mkdir -p /home/root/chocolate-doom
-cp -a /caminho/do/usb/chocolate-doom-de10/. /home/root/chocolate-doom/
-cd /home/root/chocolate-doom
-./run-chocolate-doom.sh -iwad doom1.wad
+mkdir -p /home/root
+tar -C /home/root -xzf /caminho/do/pendrive/chocolate-doom-de10.tar.gz
+cd /home/root/chocolate-doom-de10
+./run-chocolate-doom.sh -iwad /caminho/do/pendrive/doom1.wad
 ```
+
+O script copia um único arquivo `.tar.gz` para o pendrive. Isso preserva
+permissões executáveis e links simbólicos mesmo quando a mídia usa FAT ou
+exFAT.
 
 ## Diagnóstico na placa
 
 ```bash
-cd /home/root/chocolate-doom
+cd /home/root/chocolate-doom-de10
 file bin/chocolate-doom
 LD_LIBRARY_PATH="$PWD/lib" ldd bin/chocolate-doom
 echo "$DISPLAY"

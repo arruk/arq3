@@ -6,6 +6,7 @@ readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
 load_cross_config
+SYSROOT=${1:-$SYSROOT}
 
 required_headers=(
     usr/include/stdio.h

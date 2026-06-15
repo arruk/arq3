@@ -13,8 +13,6 @@ required=(
     git
     make
     pkg-config
-    scp
-    ssh
     tar
 )
 
@@ -23,7 +21,7 @@ if ! require_commands "${required[@]}"; then
 
 Em Debian/Ubuntu:
   sudo apt install \
-    autoconf automake libtool pkg-config make git file openssh-client \
+    autoconf automake libtool pkg-config make git file \
     gcc-arm-linux-gnueabihf
 EOF
     exit 1
@@ -47,5 +45,11 @@ printf 'Target: %s\n' "$TARGET_TRIPLE"
 printf 'Sysroot: %s\n' "$SYSROOT"
 
 if [[ ! -d "$SYSROOT" ]]; then
-    printf 'Sysroot ainda nao existe. Execute scripts/cross/sync-sysroot.sh.\n'
+    cat <<EOF
+Sysroot local ainda nao existe: $SYSROOT
+Importe um rootfs montado com:
+  scripts/cross/sync-sysroot.sh /caminho/para/rootfs
+
+Como alternativa, configure YOCTO_SDK_ENV com o SDK Yocto/Terasic.
+EOF
 fi

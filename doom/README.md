@@ -105,11 +105,14 @@ Depois:
 2. conecte o monitor VGA;
 3. conecte teclado e mouse às portas USB Host;
 4. conecte a saída de áudio `LINE OUT` quando necessário;
-5. conecte a porta UART `J4` ao computador por USB Mini-B;
+5. conecte a porta `UART to USB`, no canto superior direito da placa, ao
+   computador por um cabo Micro USB Type-B com dados;
 6. ligue a placa.
 
 O HPS carrega o Linux e configura na FPGA o projeto de framebuffer que gera
 o sinal VGA. A UART não transporta a imagem; ela fornece apenas o console.
+Não confunda a porta `UART to USB` com a porta USB Type-B grande, no lado
+esquerdo da placa: esta última é o USB-Blaster II usado para JTAG.
 
 Mostre novamente o checklist:
 
@@ -141,6 +144,58 @@ senha: nenhuma
 Para sair do `picocom`, use `Ctrl-A`, depois `Ctrl-X`. No `minicom`, use
 `Ctrl-A`, depois `X`.
 
+### Diagnóstico da porta serial
+
+`lsusb` confirma apenas que o dispositivo USB foi enumerado. O USB-Blaster II
+aparece como um dispositivo Altera (por exemplo, `09fb:6810`), mas ele não é o
+console serial. A interface UART deve ser associada pelo kernel ao driver
+`ftdi_sio` e criar uma ou mais portas `/dev/ttyUSB*`.
+
+Confira a associação do driver e as portas criadas:
+
+```bash
+lsusb -t
+ls -l /dev/ttyUSB* /dev/serial/by-id/* 2>/dev/null
+sudo dmesg --color=never | grep -Ei 'ftdi|usbserial|ttyUSB' | tail -n 30
+```
+
+Para um dispositivo FTDI `0403:6010`, `lsusb -t` deve mostrar
+`Driver=ftdi_sio` nas interfaces. Se não mostrar:
+
+```bash
+sudo modprobe ftdi_sio
+```
+
+Em seguida, desconecte e reconecte apenas o cabo Micro USB da UART e repita os
+comandos. Se duas portas forem criadas, teste-as explicitamente, reiniciando a
+placa para produzir mensagens de boot:
+
+```bash
+./scripts/serial-console.sh /dev/ttyUSB0
+./scripts/serial-console.sh /dev/ttyUSB1
+```
+
+Somente um programa pode usar a porta por vez. Verifique quem está usando-a:
+
+```bash
+sudo fuser -v /dev/ttyUSB0
+```
+
+Se a porta existir, mas houver `Permission denied`, confira o grupo do
+dispositivo e os grupos do usuário:
+
+```bash
+ls -l /dev/ttyUSB0
+id
+```
+
+Em Debian/Ubuntu, normalmente é necessário adicionar o usuário a `dialout` e
+então encerrar completamente a sessão e entrar novamente:
+
+```bash
+sudo usermod -aG dialout "$USER"
+```
+
 ## Diagnóstico após o boot
 
 No console da placa:
@@ -167,28 +222,31 @@ O workflow completo de compilação está em
 
 ```text
 Host x86_64
-  -> toolchain/sysroot ARMv7 do BSP
+  -> SDK Yocto/Terasic ou sysroot ARMv7 local
   -> SDL 2.0.14 + SDL_mixer 2.0.4
   -> Chocolate Doom 3.1.1
   -> pacote com executável e bibliotecas SDL
-  -> scp ou pendrive
+  -> arquivo .tar.gz no pendrive
   -> DE10-Standard
 ```
 
-Com a placa ligada e conectada à rede:
+Sem conectar a placa por SSH:
 
 ```bash
 cp config/cross.env.example config/cross.env
-# Edite TARGET_HOST em config/cross.env.
 
-./scripts/cross/target-report.sh
-./scripts/cross/sync-sysroot.sh
+# Use o SDK Yocto/Terasic em config/cross.env:
+# YOCTO_SDK_ENV=/opt/poky/.../environment-setup-...
+#
+# Ou importe um rootfs ARM montado localmente:
+./scripts/cross/sync-sysroot.sh /media/$USER/rootfs
+
 ./cross-build.sh
-./scripts/cross/deploy-scp.sh /caminho/doom1.wad
+./scripts/cross/deploy-usb.sh /media/$USER/PENDRIVE /caminho/doom1.wad
 ```
 
-O BSP runtime pode não possuir os headers X11 e ALSA. Se
-`sync-sysroot.sh` reportar esses arquivos como ausentes, use o SDK
+O BSP runtime pode não possuir os headers X11 e ALSA. Se a importação do
+rootfs reportar esses arquivos como ausentes, use o SDK
 Yocto/Terasic correspondente e configure `YOCTO_SDK_ENV`; não misture
 bibliotecas ARM de outra distribuição.
 

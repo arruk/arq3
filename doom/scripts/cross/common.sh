@@ -15,8 +15,6 @@ load_cross_config() {
         source "$config_file"
     fi
 
-    TARGET_HOST=${TARGET_HOST:-}
-    TARGET_DIR=${TARGET_DIR:-/home/root/chocolate-doom}
     TARGET_TRIPLE=${TARGET_TRIPLE:-arm-linux-gnueabihf}
     CROSS_PREFIX=${CROSS_PREFIX:-${TARGET_TRIPLE}-}
     SYSROOT=${SYSROOT:-"$root_dir/build/sysroot"}
@@ -24,7 +22,7 @@ load_cross_config() {
     TARGET_CFLAGS=${TARGET_CFLAGS:--O2 -pipe -mcpu=cortex-a9 -mfpu=neon -mfloat-abi=hard}
     JOBS=${JOBS:-}
 
-    export TARGET_HOST TARGET_DIR TARGET_TRIPLE CROSS_PREFIX SYSROOT
+    export TARGET_TRIPLE CROSS_PREFIX SYSROOT
     export YOCTO_SDK_ENV TARGET_CFLAGS JOBS
 }
 
@@ -41,14 +39,6 @@ require_commands() {
     if (( ${#missing[@]} > 0 )); then
         printf 'Comandos ausentes:\n' >&2
         printf '  %s\n' "${missing[@]}" >&2
-        return 1
-    fi
-}
-
-require_target_host() {
-    if [[ -z "$TARGET_HOST" ]]; then
-        printf 'TARGET_HOST nao configurado.\n' >&2
-        printf 'Copie config/cross.env.example para config/cross.env e ajuste o IP.\n' >&2
         return 1
     fi
 }

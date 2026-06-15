@@ -237,4 +237,4 @@ esac
 )
 
 printf '\nPacote: %s\n' "$ROOT_DIR/dist/chocolate-doom-de10.tar.gz"
-printf 'Deploy: scripts/cross/deploy-scp.sh [doom1.wad]\n'
+printf 'Pendrive: scripts/cross/deploy-usb.sh <ponto-de-montagem> [doom1.wad]\n'
