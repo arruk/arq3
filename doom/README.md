@@ -160,7 +160,42 @@ Para executar aplicações gráficas a partir da UART:
 export DISPLAY=:0.0
 ```
 
+## Cross-compilar Chocolate Doom
+
+O workflow completo de compilação está em
+[CROSS_COMPILE.md](CROSS_COMPILE.md). Resumo:
+
+```text
+Host x86_64
+  -> toolchain/sysroot ARMv7 do BSP
+  -> SDL 2.0.14 + SDL_mixer 2.0.4
+  -> Chocolate Doom 3.1.1
+  -> pacote com executável e bibliotecas SDL
+  -> scp ou pendrive
+  -> DE10-Standard
+```
+
+Com a placa ligada e conectada à rede:
+
+```bash
+cp config/cross.env.example config/cross.env
+# Edite TARGET_HOST em config/cross.env.
+
+./scripts/cross/target-report.sh
+./scripts/cross/sync-sysroot.sh
+./cross-build.sh
+./scripts/cross/deploy-scp.sh /caminho/doom1.wad
+```
+
+O BSP runtime pode não possuir os headers X11 e ALSA. Se
+`sync-sysroot.sh` reportar esses arquivos como ausentes, use o SDK
+Yocto/Terasic correspondente e configure `YOCTO_SDK_ENV`; não misture
+bibliotecas ARM de outra distribuição.
+
 ## Referências
 
 - [Recursos da DE10-Standard](https://www.terasic.com.tw/cgi-bin/page/archive.pl?CategoryNo=167&Language=English&No=1081&PartNo=4)
 - [Manual oficial da DE10-Standard](https://www.terasic.com.tw/cgi-bin/page/archive_download.pl?Language=English&No=1081&FID=551f9fbfa8ed07843cd51831db1b04dd)
+- [Chocolate Doom](https://github.com/chocolate-doom/chocolate-doom)
+- [SDL](https://github.com/libsdl-org/SDL)
+- [SDL_mixer](https://github.com/libsdl-org/SDL_mixer)
