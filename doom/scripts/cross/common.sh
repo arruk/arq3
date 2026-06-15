@@ -17,12 +17,13 @@ load_cross_config() {
 
     TARGET_TRIPLE=${TARGET_TRIPLE:-arm-linux-gnueabihf}
     CROSS_PREFIX=${CROSS_PREFIX:-${TARGET_TRIPLE}-}
-    SYSROOT=${SYSROOT:-"$root_dir/build/sysroot"}
+    SYSROOT=${SYSROOT:-}
+    LOCAL_SYSROOT="$root_dir/build/sysroot"
     YOCTO_SDK_ENV=${YOCTO_SDK_ENV:-}
     TARGET_CFLAGS=${TARGET_CFLAGS:--O2 -pipe -mcpu=cortex-a9 -mfpu=neon -mfloat-abi=hard}
     JOBS=${JOBS:-}
 
-    export TARGET_TRIPLE CROSS_PREFIX SYSROOT
+    export TARGET_TRIPLE CROSS_PREFIX SYSROOT LOCAL_SYSROOT
     export YOCTO_SDK_ENV TARGET_CFLAGS JOBS
 }
 
@@ -44,6 +45,8 @@ require_commands() {
 }
 
 load_toolchain() {
+    local compiler_sysroot
+
     if [[ -n "$YOCTO_SDK_ENV" ]]; then
         if [[ ! -f "$YOCTO_SDK_ENV" ]]; then
             printf 'YOCTO_SDK_ENV nao encontrado: %s\n' "$YOCTO_SDK_ENV" >&2
@@ -66,6 +69,19 @@ load_toolchain() {
             export TARGET_TRIPLE CROSS_PREFIX
         fi
     else
+        if [[ -z "$SYSROOT" ]]; then
+            compiler_sysroot=$("${CROSS_PREFIX}gcc" -print-sysroot)
+            if [[ -n "$compiler_sysroot" &&
+                  "$compiler_sysroot" != "/" &&
+                  -d "$compiler_sysroot" ]]; then
+                SYSROOT=$compiler_sysroot
+                printf 'Sysroot detectado pelo compilador: %s\n' "$SYSROOT"
+            else
+                SYSROOT=$LOCAL_SYSROOT
+            fi
+            export SYSROOT
+        fi
+
         export CC="${CROSS_PREFIX}gcc --sysroot=$SYSROOT"
         export AR="${CROSS_PREFIX}ar"
         export AS="${CROSS_PREFIX}as"

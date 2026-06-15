@@ -13,11 +13,11 @@ readonly DIST_DIR="$ROOT_DIR/dist/chocolate-doom-de10"
 
 load_cross_config
 require_commands autoreconf file make pkg-config sha256sum tar
-"$SCRIPT_DIR/check-host.sh"
-
-if [[ -z "$YOCTO_SDK_ENV" ]]; then
-    "$SCRIPT_DIR/validate-sysroot.sh"
+if [[ "${CROSS_HOST_CHECKED:-0}" != 1 ]]; then
+    "$SCRIPT_DIR/check-host.sh"
 fi
+
+load_toolchain
 
 for source_dir in chocolate-doom SDL SDL_mixer; do
     if [[ ! -d "$SOURCE_DIR/$source_dir" ]]; then
@@ -27,7 +27,6 @@ for source_dir in chocolate-doom SDL SDL_mixer; do
     fi
 done
 
-load_toolchain
 jobs=$(parallel_jobs)
 
 script_hash=$(sha256sum -- "$0" | cut -d' ' -f1)

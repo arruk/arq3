@@ -235,11 +235,16 @@ Sem conectar a placa por SSH:
 ```bash
 cp config/cross.env.example config/cross.env
 
-# Use o SDK Yocto/Terasic em config/cross.env:
+# Com SYSROOT vazio, o sysroot do cross-compiler e detectado automaticamente.
+# Se ele nao fornecer um, use o SDK Yocto/Terasic em config/cross.env:
 # YOCTO_SDK_ENV=/opt/poky/.../environment-setup-...
 #
 # Ou importe um rootfs ARM montado localmente:
 ./scripts/cross/sync-sysroot.sh /media/$USER/rootfs
+
+# Tambem pode importar um arquivo criado na placa e trazido por pendrive:
+./scripts/cross/sync-sysroot.sh \
+  /run/media/$USER/PENDRIVE/de10-sysroot.tar.gz
 
 ./cross-build.sh
 ./scripts/cross/deploy-usb.sh /media/$USER/PENDRIVE /caminho/doom1.wad

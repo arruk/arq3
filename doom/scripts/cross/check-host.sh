@@ -45,11 +45,16 @@ printf 'Target: %s\n' "$TARGET_TRIPLE"
 printf 'Sysroot: %s\n' "$SYSROOT"
 
 if [[ ! -d "$SYSROOT" ]]; then
-    cat <<EOF
+    cat >&2 <<EOF
 Sysroot local ainda nao existe: $SYSROOT
 Importe um rootfs montado com:
   scripts/cross/sync-sysroot.sh /caminho/para/rootfs
 
 Como alternativa, configure YOCTO_SDK_ENV com o SDK Yocto/Terasic.
 EOF
+    exit 1
+fi
+
+if [[ -z "$YOCTO_SDK_ENV" ]]; then
+    "$SCRIPT_DIR/validate-sysroot.sh" "$SYSROOT"
 fi

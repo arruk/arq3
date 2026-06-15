@@ -58,17 +58,42 @@ cp config/cross.env.example config/cross.env
 
 Há duas opções locais para fornecer headers e bibliotecas ARM:
 
-1. SDK Yocto/Terasic instalado no computador:
+1. Sysroot já fornecido pelo cross-compiler. Com `SYSROOT=` vazio, os
+   scripts consultam automaticamente:
+
+```bash
+arm-linux-gnueabihf-gcc -print-sysroot
+```
+
+2. SDK Yocto/Terasic instalado no computador:
 
 ```bash
 YOCTO_SDK_ENV=/opt/poky/.../environment-setup-...
 ```
 
-2. Rootfs ARM disponível localmente, por exemplo a partição Linux do
+3. Rootfs ARM disponível localmente, por exemplo a partição Linux do
    microSD montada no computador:
 
 ```bash
 ./scripts/cross/sync-sysroot.sh /media/$USER/rootfs
+```
+
+Se não quiser remover o microSD, gere o arquivo diretamente na DE10. Com o
+pendrive montado na placa em `/media/usb`, execute:
+
+```sh
+set -- lib usr/lib usr/include
+[ -e /usr/local/lib ] && set -- "$@" usr/local/lib
+[ -e /usr/local/include ] && set -- "$@" usr/local/include
+tar -C / -czf /media/usb/de10-sysroot.tar.gz "$@"
+sync
+```
+
+No computador, importe o arquivo trazido pelo pendrive:
+
+```bash
+./scripts/cross/sync-sysroot.sh \
+  /run/media/$USER/PENDRIVE/de10-sysroot.tar.gz
 ```
 
 O sysroot importado fica em `build/sysroot` e é validado automaticamente.
