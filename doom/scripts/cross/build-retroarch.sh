@@ -5,7 +5,6 @@ for command_name in \
 	file make patch sed grep find xargs sort tail \
 	nproc rm mkdir cp chmod tar \
 	arm-linux-gnueabihf-gcc \
-	arm-linux-gnueabihf-g++ \
 	arm-linux-gnueabihf-ar \
 	arm-linux-gnueabihf-ranlib \
 	arm-linux-gnueabihf-readelf \
@@ -21,7 +20,7 @@ readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/build-common.sh"
 
 readonly ROOT_DIR="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
-readonly SOURCE_DIR="$ROOT_DIR/build/sources/retroarch"
+readonly SOURCE_DIR="$ROOT_DIR/build/sources/RetroArch"
 readonly SDL_PREFIX="$ROOT_DIR/build/cross/prefix"
 readonly DIST_DIR="$ROOT_DIR/dist/retroarch-de10"
 readonly SYSROOT="$ROOT_DIR/build/sysroot"
@@ -170,9 +169,13 @@ PATH="$SDL_PREFIX/bin:$PATH" \
     # O fallback do configure procura estes headers no host. Substitua-os
     # explicitamente pelos headers ARM usados para construir as bibliotecas.
     sed -i \
-        -e "s|-I/usr/include/SDL2|-I$SDL_PREFIX/include/SDL2|g" \
-        -e "s|-I/usr/include/alsa|-I$SYSROOT/usr/include/alsa|g" \
-        config.mk
+	    -e "s|-I/usr/include/SDL2|-I$SDL_PREFIX/include/SDL2|g" \
+	    -e "s|-I/usr/include/alsa|-I$SYSROOT/usr/include/alsa|g" \
+	    -e 's/^HAVE_FONTCONFIG = 1$/HAVE_FONTCONFIG = 0/' \
+	    -e '/^FONTCONFIG_CFLAGS = /d' \
+	    -e '/^FONTCONFIG_LIBS = /d' \
+	    config.mk
+
 
     if grep -Eq -- '(^|[[:space:]])-I/usr/include(/|[[:space:]]|$)' config.mk; then
         printf 'ERRO: config.mk ainda referencia headers do host.\n' >&2
@@ -223,7 +226,6 @@ if [[ -z "$target_glibc" ||
     exit 1
 fi
 
-printf '[4/4] Montando pacote\n'
 rm -rf -- "$DIST_DIR"
 mkdir -p -- "$DIST_DIR/bin" "$DIST_DIR/cores" "$DIST_DIR/lib" \
     "$DIST_DIR/roms"
