@@ -45,7 +45,7 @@ require_commands() {
 }
 
 load_toolchain() {
-    local compiler_sysroot
+    local compiler_sysroot sysroot_crt_dir
 
     if [[ -n "$YOCTO_SDK_ENV" ]]; then
         if [[ ! -f "$YOCTO_SDK_ENV" ]]; then
@@ -82,7 +82,29 @@ load_toolchain() {
             export SYSROOT
         fi
 
+        sysroot_crt_dir=$(
+            find "$SYSROOT/usr/lib" "$SYSROOT/lib" \
+                -name crt1.o -printf '%h\n' -quit 2>/dev/null
+        )
+
         export CC="${CROSS_PREFIX}gcc --sysroot=$SYSROOT"
+        if [[ -n "$sysroot_crt_dir" ]]; then
+            # Debian cross-compilers search their bundled libc before an
+            # external sysroot unless its startfile directory is prioritized.
+            CC="$CC -B$sysroot_crt_dir/"
+            export CC
+        fi
+        if command -v "${CROSS_PREFIX}g++" >/dev/null 2>&1; then
+            export CXX="${CROSS_PREFIX}g++ --sysroot=$SYSROOT"
+            if [[ -n "$sysroot_crt_dir" ]]; then
+                CXX="$CXX -B$sysroot_crt_dir/"
+                export CXX
+            fi
+        else
+            # Avoid Autoconf falling back to the host C++ compiler.
+            export CXX=false
+            export CXXCPP="$CC -E -x c"
+        fi
         export AR="${CROSS_PREFIX}ar"
         export AS="${CROSS_PREFIX}as"
         export LD="${CROSS_PREFIX}ld"

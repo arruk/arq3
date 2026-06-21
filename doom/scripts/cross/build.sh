@@ -47,7 +47,29 @@ if [[ -d "$WORK_DIR" && "$previous_build_id" != "$build_id" ]]; then
 fi
 
 toolchain_cflags=${CFLAGS:-}
+toolchain_cppflags=${CPPFLAGS:-}
+toolchain_ldflags=${LDFLAGS:-}
 target_pkg_config_libdir=${PKG_CONFIG_LIBDIR:-}
+
+if [[ -z "$YOCTO_SDK_ENV" ]]; then
+    compiler_include=$("${CROSS_PREFIX}gcc" -print-file-name=include)
+    target_include="$SYSROOT/usr/include/$TARGET_TRIPLE"
+    sysroot_library_dirs=()
+
+    [[ -d "$SYSROOT/lib/$TARGET_TRIPLE" ]] &&
+        sysroot_library_dirs+=("$SYSROOT/lib/$TARGET_TRIPLE")
+    [[ -d "$SYSROOT/usr/lib/$TARGET_TRIPLE" ]] &&
+        sysroot_library_dirs+=("$SYSROOT/usr/lib/$TARGET_TRIPLE")
+
+    toolchain_cppflags+=" -nostdinc -isystem $compiler_include"
+    [[ -d "$target_include" ]] &&
+        toolchain_cppflags+=" -isystem $target_include"
+    toolchain_cppflags+=" -isystem $SYSROOT/usr/include"
+
+    for library_dir in "${sysroot_library_dirs[@]}"; do
+        toolchain_ldflags+=" -Wl,-rpath-link,$library_dir"
+    done
+fi
 
 if [[ -z "$target_pkg_config_libdir" ]]; then
     mapfile -t target_pc_dirs < <(
@@ -63,8 +85,8 @@ if [[ -z "$target_pkg_config_libdir" ]]; then
 fi
 
 export CFLAGS="$toolchain_cflags $TARGET_CFLAGS"
-export CPPFLAGS="${CPPFLAGS:-}"
-export LDFLAGS="${LDFLAGS:-}"
+export CPPFLAGS="$toolchain_cppflags"
+export LDFLAGS="$toolchain_ldflags"
 export PKG_CONFIG_SYSROOT_DIR="$SYSROOT"
 export PKG_CONFIG_LIBDIR="$target_pkg_config_libdir"
 export PKG_CONFIG_PATH=
@@ -216,6 +238,44 @@ cp -- "$SOURCE_DIR/SDL/COPYING.txt" "$DIST_DIR/COPYING.SDL.txt"
 cp -- "$SOURCE_DIR/SDL_mixer/COPYING.txt" "$DIST_DIR/COPYING.SDL_mixer.txt"
 
 chmod +x "$DIST_DIR/run-chocolate-doom.sh" "$DIST_DIR/run-chocolate-setup.sh"
+
+target_glibc=$(
+    find "$SYSROOT/lib" "$SYSROOT/usr/lib" -name 'libc.so.6' -print -quit |
+        xargs "$READELF" --version-info 2>/dev/null |
+        sed -n 's/.*Name: GLIBC_\([0-9][0-9.]*\).*/\1/p' |
+        sort -Vu |
+        tail -1
+)
+
+if [[ -z "$target_glibc" ]]; then
+    printf 'ERRO: nao foi possivel determinar a versao GLIBC do sysroot.\n' >&2
+    exit 1
+fi
+
+while IFS= read -r artifact; do
+    required_glibc=$(
+        "$READELF" --version-info "$artifact" 2>/dev/null |
+            sed -n 's/.*Name: GLIBC_\([0-9][0-9.]*\).*/\1/p' |
+            sort -Vu |
+            tail -1
+    )
+
+    if [[ -n "$required_glibc" &&
+          "$(printf '%s\n%s\n' "$target_glibc" "$required_glibc" |
+              sort -V |
+              tail -1)" != "$target_glibc" ]]; then
+        printf 'ERRO: %s requer GLIBC_%s; sysroot fornece ate GLIBC_%s.\n' \
+            "$artifact" "$required_glibc" "$target_glibc" >&2
+        exit 1
+    fi
+done < <(
+    find "$DIST_DIR/bin" "$DIST_DIR/lib" -type f -o -type l |
+        while IFS= read -r artifact; do
+            file -L "$artifact" | grep -q 'ELF' && printf '%s\n' "$artifact"
+        done
+)
+
+printf 'Compatibilidade GLIBC validada: ate GLIBC_%s.\n' "$target_glibc"
 
 file "$DIST_DIR/bin/chocolate-doom"
 case "$TARGET_TRIPLE" in
