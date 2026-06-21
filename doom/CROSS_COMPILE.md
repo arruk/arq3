@@ -194,3 +194,39 @@ O `file` deve indicar `ELF 32-bit`, `ARM` e `EABI5`. Se `ldd` reportar uma
 biblioteca ausente, ela deve vir do mesmo BSP/SDK usado no sysroot.
 
 O IWAD não é baixado ou incluído pelos scripts.
+
+## RetroArch e MAME 2000
+
+Para jogos arcade antigos, os fontes esperados são:
+
+```text
+build/sources/retroarch/
+build/sources/mame2000-libretro/
+```
+
+O core `mame2000_libretro.so` deve ser compilado para ARM usando somente os
+headers do sysroot do BSP. Depois, compile e empacote o frontend:
+
+```bash
+./scripts/cross/build-retroarch.sh
+```
+
+O script configura uma versão reduzida do RetroArch com SDL2, ALSA, NEON e
+carregamento dinâmico de cores. OpenGL, rede, menu, shaders e dependências
+desnecessárias ficam desabilitados. Ele também impede que headers modernos do
+host introduzam símbolos `time64`, incompatíveis com a `glibc 2.23` do BSP.
+
+O resultado fica em:
+
+```text
+dist/retroarch-de10/
+dist/retroarch-de10.tar.gz
+```
+
+Copie uma ROM compatível com o romset MAME 0.37b5 para `roms/`. Na placa:
+
+```bash
+tar -xzf retroarch-de10.tar.gz
+cd retroarch-de10
+./run-retroarch.sh roms/centiped.zip
+```
