@@ -18,6 +18,31 @@ if [[ $# -ne 2 ]]; then
     exit 2
 fi
 
+required_commands=(
+	realpath
+	lsblk
+	findmnt
+	stat
+	numfmt
+	sha256sum
+	sudo
+	umount
+	dd
+	sync
+	cmp
+	sed
+	cut
+	head
+	xargs
+)
+
+for command_name in "${required_commands[@]}"; do
+	if ! command -v "$command_name" >/dev/null 2>&1; then
+		printf 'Comando obrigatório ausente: %s\n' "$command_name" >&2
+		exit 1
+	fi
+done
+
 image=$(realpath -- "$1")
 device=$(realpath -- "$2")
 
