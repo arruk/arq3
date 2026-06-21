@@ -14,7 +14,10 @@ validate_sysroot() {
 		[[ -e "$root/$item" ]] || missing+=("$item")
 	done
 
-	for item in libX11.so libasound.so libc.so libm.so libdl.so crt1.o; do
+	for item in \
+		libX11.so libasound.so libc.so libm.so libdl.so \
+		crt1.o crti.o crtn.o
+	do
 		if ! find "$root/lib" "$root/usr/lib" \
 			-name "$item" -print -quit 2>/dev/null | grep -q .; then
 		missing+=("$item")
@@ -28,7 +31,7 @@ validate_sysroot() {
 	fi
 }
 
-for command_name in realpath tar dirname find grep readlink ln rm mv; do
+for command_name in curl dpkg-deb realpath tar dirname find grep readlink ln rm mv; do
 	if ! command -v "$command_name" >/dev/null 2>&1; then
 		printf 'Comando obrigatório ausente: %s\n' "$command_name" >&2
 		exit 1
@@ -64,8 +67,6 @@ if [[ "$source_path" == "$(realpath -m -- "$SYSROOT")" ]]; then
 	exit 1
 fi
 
-validate_sysroot "$source_path"
-
 sysroot_parent=$(dirname -- "$SYSROOT")
 sysroot_temp="$sysroot_parent/.sysroot.tmp.$$"
 trap 'rm -rf -- "$sysroot_temp"' EXIT
@@ -94,6 +95,16 @@ fi
 printf 'Importando sysroot do rootfs local %s\n' "$source_path"
 tar -C "$source_path" -cf - "${paths[@]}" |
 	tar -C "$sysroot_temp" --no-same-owner -xf -
+
+readonly ALSA_PACKAGE=/tmp/libasound2-dev_armhf.deb
+readonly ALSA_URL="https://ports.ubuntu.com/ubuntu-ports/pool/main/a/alsa-lib/libasound2-dev_1.1.0-0ubuntu1_armhf.deb"
+
+if [[ ! -f "$ALSA_PACKAGE" ]]; then
+	curl -L --fail -o "$ALSA_PACKAGE" "$ALSA_URL"
+fi
+
+dpkg-deb -x "$ALSA_PACKAGE" "$sysroot_temp"
+
 
 while IFS= read -r -d '' link_path; do
     link_target=$(readlink -- "$link_path")

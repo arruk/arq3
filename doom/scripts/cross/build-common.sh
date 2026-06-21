@@ -14,7 +14,7 @@ prepare_build_dir() {
 
 	BUILD_ID=$(printf '%s\n' \
 		"$TARGET_TRIPLE" "$CC" "$SYSROOT" \
-		"$TARGET_CFLAGS" "$script_hash" |
+		"$CFLAGS" "$CPPFLAGS" "$LDFLAGS" "$script_hash" |
 		sha256sum | cut -d' ' -f1)
 
 	previous_build_id=
@@ -28,7 +28,7 @@ prepare_build_dir() {
 
 setup_toolchain(){
 
-	local compiler_include target_include command_name
+	local compiler_include target_include crt_dir command_name
 	local -a pkgconfig_dirs
 
 	command -v mapfile >/dev/null 2>&1 || {
@@ -46,8 +46,8 @@ setup_toolchain(){
 	readonly TARGET_CFLAGS="-O2 -pipe -mcpu=cortex-a9 -mfpu=neon -mfloat-abi=hard"
 
 	for command_name in \
-		"${CROSS_PREFIX}gcc" "${CROSS_PREFIX}g++" \
-		"${CROSS_PREFIX}ar" "${CROSS_PREFIX}ranlib" 
+		"${CROSS_PREFIX}gcc" "${CROSS_PREFIX}ar" \
+		"${CROSS_PREFIX}ranlib"
 	do
 		command -v "$command_name" >/dev/null 2>&1 || {
 			printf 'Comando ausente: %s\n' "$command_name" >&2
@@ -57,9 +57,23 @@ setup_toolchain(){
 
 	compiler_include=$("${CROSS_PREFIX}gcc" -print-file-name=include)
 	target_include="$SYSROOT/usr/include/$TARGET_TRIPLE"
+	crt_dir=$(
+		find "$SYSROOT/usr/lib" "$SYSROOT/lib" \
+			-name crt1.o -printf '%h\n' -quit
+	)
 
-	export CC="${CROSS_PREFIX}gcc --sysroot=$SYSROOT"
-	export CXX="${CROSS_PREFIX}g++ --sysroot=$SYSROOT"
+	if [[ -z "$crt_dir" ]]; then
+		printf 'crt1.o não encontrado no sysroot: %s\n' "$SYSROOT" >&2
+		exit 1
+	fi
+
+	export CC="${CROSS_PREFIX}gcc --sysroot=$SYSROOT -B$crt_dir/"
+	if command -v "${CROSS_PREFIX}g++" >/dev/null 2>&1; then
+		export CXX="${CROSS_PREFIX}g++ --sysroot=$SYSROOT -B$crt_dir/"
+	else
+		export CXX=false
+		export CXXCPP="$CC -E -x c"
+	fi
 	export AR="${CROSS_PREFIX}ar"
 	export RANLIB="${CROSS_PREFIX}ranlib"
 
@@ -78,7 +92,7 @@ setup_toolchain(){
 
 	mapfile -t pkgconfig_dirs < <(
 		find "$SYSROOT/usr/lib" "$SYSROOT/usr/share" \
-			-maxdepth 3 -type d -name pkgconfig
+			-maxdepth 3 -type d -name pkgconfig 2>/dev/null
 		)
 
 	if (( ${#pkgconfig_dirs[@]} > 0 )); then
@@ -98,4 +112,3 @@ find_x11_library(){
 		-name 'libX11.so' -printf '%h\n' -quit 2>/dev/null
 
 }
-
