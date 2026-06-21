@@ -1,94 +1,122 @@
-# DE10-Standard: Linux LXDE no microSD
+# DE10-Standard
 
-Este diretório contém um workflow para preparar o Linux LXDE da Terasic,
-gravar o microSD e acessar o console serial da DE10-Standard.
+Este projeto prepara o Linux LXDE da Terasic e compila aplicações ARM para a
+DE10-Standard.
 
-## Requisitos no computador
+## 1. Baixar e extrair a imagem
 
-O fluxo foi escrito para Linux e usa:
-
-- `bash`
-- `curl`
-- `unzip`
-- `lsblk` e `findmnt` (`util-linux`)
-- `dd`, `cmp` e `sha256sum` (`coreutils`)
-- `sudo`
-- `picocom` ou `minicom` para o console serial
-
-Confira o ambiente:
-
-```bash
-./scripts/check-host.sh
-```
-
-Em Debian/Ubuntu, os pacotes normalmente podem ser instalados com:
-
-```bash
-sudo apt install curl unzip util-linux coreutils picocom
-```
-
-## 1. Obter e preparar a imagem
-
-Baixe **Linux LXDE Desktop (Kernel 4.5)** na página oficial:
+Baixe **Linux LXDE Desktop (Kernel 4.5)** na página oficial da Terasic:
 
 <https://www.terasic.com.tw/cgi-bin/page/archive.pl?CategoryNo=167&Language=English&No=1081&PartNo=4>
 
-O download da imagem LXDE usa um formulário com sessão no site da Terasic.
-Depois do download, prepare a imagem:
+Extraia o arquivo baixado até obter a imagem `.img`.
+
+Baixe também os fontes usados na compilação:
 
 ```bash
-./scripts/prepare-image.sh ~/Downloads/DE10_Standard_LXDE.zip
+mkdir -p build/sources
+
+git clone --branch release-2.0.14 \
+  https://github.com/libsdl-org/SDL.git build/sources/SDL
+
+git clone --branch release-2.0.4 \
+  https://github.com/libsdl-org/SDL_mixer.git build/sources/SDL_mixer
+
+git clone --branch chocolate-doom-3.1.1 \
+  https://github.com/chocolate-doom/chocolate-doom.git \
+  build/sources/chocolate-doom
+
+git clone https://github.com/libretro/RetroArch.git \
+  build/sources/retroarch
+
+git clone https://github.com/libretro/mame2000-libretro.git \
+  build/sources/mame2000-libretro
 ```
 
-O script também aceita uma imagem `.img` já extraída ou uma URL:
+## 2. Montar a imagem e preparar o sysroot
+
+Associe a imagem a um dispositivo de loop:
 
 ```bash
-./scripts/prepare-image.sh /caminho/de10_standard_lxde.img
-./scripts/prepare-image.sh 'https://servidor/exemplo.zip'
+loop=$(sudo losetup --find --show --partscan /caminho/de10_standard_lxde.img)
+lsblk -f "$loop"
 ```
 
-O resultado fica em `build/images/`. O script imprime o caminho exato e o
-SHA-256 da imagem.
-
-## 2. Identificar o microSD
-
-Insira o microSD e execute:
+Identifique a partição Linux, normalmente `${loop}p2`, e monte-a:
 
 ```bash
-./scripts/list-disks.sh
+sudo mkdir -p /mnt/de10-rootfs
+sudo mount -o ro "${loop}p2" /mnt/de10-rootfs
 ```
 
-Confirme o dispositivo usando tamanho, modelo e transporte. Use o disco
-inteiro, por exemplo `/dev/sdb`, e não uma partição como `/dev/sdb1`.
-
-## 3. Gravar e verificar
+Prepare o sysroot usado na cross-compilação:
 
 ```bash
-./scripts/flash-sd.sh build/images/de10_standard_lxde.img /dev/sdX
+./scripts/sync-sysroot.sh /mnt/de10-rootfs
 ```
 
-O script:
-
-1. recusa partições e o disco que contém `/`;
-2. exige confirmação digitada;
-3. desmonta as partições do cartão;
-4. grava com `dd`;
-5. sincroniza os dados;
-6. compara a imagem com o início do cartão.
-
-Todos os dados do dispositivo escolhido serão apagados.
-
-Também é possível executar o assistente completo:
+Depois desmonte a imagem:
 
 ```bash
-./setup.sh ~/Downloads/DE10_Standard_LXDE.zip /dev/sdX
+sudo umount /mnt/de10-rootfs
+sudo losetup -d "$loop"
 ```
 
-## 4. Configurar a placa
+## 3. Gravar o microSD
 
-Faça isto com a DE10-Standard desligada.
+Identifique o disco do microSD:
 
-Para o BSP LXDE, configure `MSEL[4:0] = 01010` no `SW10`:
+```bash
+lsblk
+```
+
+Grave a imagem usando o disco inteiro, e não uma partição:
+
+```bash
+./scripts/flash-sd.sh /caminho/de10_standard_lxde.img /dev/sdX
+```
+
+Todos os dados do dispositivo selecionado serão apagados.
+
+## 4. Compilar
+
+Os fontes devem estar em `build/sources/`.
+
+Para compilar e empacotar o Chocolate Doom:
+
+```bash
+./scripts/cross/build-sdl.sh
+./scripts/cross/build-sdlmixer.sh
+./scripts/cross/build-chocolate.sh
+./scripts/cross/package-chocolate.sh
+```
+
+O pacote será criado em:
+
+```text
+dist/chocolate-doom-de10.tar.gz
+```
+
+Para compilar o RetroArch:
+
+```bash
+./scripts/cross/build-sdl.sh
+./scripts/cross/build-mame.sh
+./scripts/cross/build-retroarch.sh
+```
+
+O `build-mame.sh` gera `mame2000_libretro.so` em
+`build/sources/mame2000-libretro/`.
+
+O pacote será criado em:
+
+```text
+dist/retroarch-de10.tar.gz
+```
+
+## 5. Configurar a placa
+
+Com a DE10-Standard desligada, configure `MSEL[4:0] = 01010` no `SW10`:
 
 | Chave | Posição |
 |---|---|
@@ -104,161 +132,21 @@ Depois:
 1. insira o microSD;
 2. conecte o monitor VGA;
 3. conecte teclado e mouse às portas USB Host;
-4. conecte a saída de áudio `LINE OUT` quando necessário;
-5. conecte a porta `UART to USB`, no canto superior direito da placa, ao
-   computador por um cabo Micro USB Type-B com dados;
+4. conecte a saída de áudio `LINE OUT`;
+5. conecte a porta `UART to USB` ao computador;
 6. ligue a placa.
 
-O HPS carrega o Linux e configura na FPGA o projeto de framebuffer que gera
-o sinal VGA. A UART não transporta a imagem; ela fornece apenas o console.
-Não confunda a porta `UART to USB` com a porta USB Type-B grande, no lado
-esquerdo da placa: esta última é o USB-Blaster II usado para JTAG.
-
-Mostre novamente o checklist:
-
-```bash
-./scripts/board-checklist.sh
-```
-
-## 5. Console serial
-
-Após ligar a placa:
-
-```bash
-./scripts/serial-console.sh
-```
-
-Também é possível informar a porta:
+Abra o console serial:
 
 ```bash
 ./scripts/serial-console.sh /dev/ttyUSB0
 ```
 
-Parâmetros: `115200 8N1`, sem controle de fluxo. Login:
+Configuração serial: `115200 8N1`, sem controle de fluxo.
+
+Login padrão:
 
 ```text
 usuário: root
 senha: nenhuma
 ```
-
-Para sair do `picocom`, use `Ctrl-A`, depois `Ctrl-X`. No `minicom`, use
-`Ctrl-A`, depois `X`.
-
-### Diagnóstico da porta serial
-
-`lsusb` confirma apenas que o dispositivo USB foi enumerado. O USB-Blaster II
-aparece como um dispositivo Altera (por exemplo, `09fb:6810`), mas ele não é o
-console serial. A interface UART deve ser associada pelo kernel ao driver
-`ftdi_sio` e criar uma ou mais portas `/dev/ttyUSB*`.
-
-Confira a associação do driver e as portas criadas:
-
-```bash
-lsusb -t
-ls -l /dev/ttyUSB* /dev/serial/by-id/* 2>/dev/null
-sudo dmesg --color=never | grep -Ei 'ftdi|usbserial|ttyUSB' | tail -n 30
-```
-
-Para um dispositivo FTDI `0403:6010`, `lsusb -t` deve mostrar
-`Driver=ftdi_sio` nas interfaces. Se não mostrar:
-
-```bash
-sudo modprobe ftdi_sio
-```
-
-Em seguida, desconecte e reconecte apenas o cabo Micro USB da UART e repita os
-comandos. Se duas portas forem criadas, teste-as explicitamente, reiniciando a
-placa para produzir mensagens de boot:
-
-```bash
-./scripts/serial-console.sh /dev/ttyUSB0
-./scripts/serial-console.sh /dev/ttyUSB1
-```
-
-Somente um programa pode usar a porta por vez. Verifique quem está usando-a:
-
-```bash
-sudo fuser -v /dev/ttyUSB0
-```
-
-Se a porta existir, mas houver `Permission denied`, confira o grupo do
-dispositivo e os grupos do usuário:
-
-```bash
-ls -l /dev/ttyUSB0
-id
-```
-
-Em Debian/Ubuntu, normalmente é necessário adicionar o usuário a `dialout` e
-então encerrar completamente a sessão e entrar novamente:
-
-```bash
-sudo usermod -aG dialout "$USER"
-```
-
-## Diagnóstico após o boot
-
-No console da placa:
-
-```bash
-uname -a
-cat /proc/fb
-ls -l /dev/fb*
-fbset
-aplay -l
-echo "$DISPLAY"
-```
-
-Para executar aplicações gráficas a partir da UART:
-
-```bash
-export DISPLAY=:0.0
-```
-
-## Cross-compilar Chocolate Doom
-
-O workflow completo de compilação está em
-[CROSS_COMPILE.md](CROSS_COMPILE.md). Resumo:
-
-```text
-Host x86_64
-  -> SDK Yocto/Terasic ou sysroot ARMv7 local
-  -> SDL 2.0.14 + SDL_mixer 2.0.4
-  -> Chocolate Doom 3.1.1
-  -> pacote com executável e bibliotecas SDL
-  -> arquivo .tar.gz no pendrive
-  -> DE10-Standard
-```
-
-Sem conectar a placa por SSH:
-
-```bash
-cp config/cross.env.example config/cross.env
-
-# Com SYSROOT vazio, o sysroot do cross-compiler e detectado automaticamente.
-# Se ele nao fornecer um, use o SDK Yocto/Terasic em config/cross.env:
-# YOCTO_SDK_ENV=/opt/poky/.../environment-setup-...
-#
-# Ou importe um rootfs ARM montado localmente:
-./scripts/cross/sync-sysroot.sh /media/$USER/rootfs
-
-# Tambem pode importar um arquivo criado na placa e trazido por pendrive:
-./scripts/cross/sync-sysroot.sh \
-  /run/media/$USER/PENDRIVE/de10-sysroot.tar.gz
-
-./cross-build.sh
-./scripts/cross/deploy-usb.sh /media/$USER/PENDRIVE /caminho/doom1.wad
-```
-
-O BSP runtime pode não possuir os headers X11 e ALSA. Se a importação do
-rootfs reportar esses arquivos como ausentes, use o SDK
-Yocto/Terasic correspondente e configure `YOCTO_SDK_ENV`; não misture
-bibliotecas ARM de outra distribuição.
-
-## Referências
-
-- [Recursos da DE10-Standard](https://www.terasic.com.tw/cgi-bin/page/archive.pl?CategoryNo=167&Language=English&No=1081&PartNo=4)
-- [Manual oficial da DE10-Standard](https://www.terasic.com.tw/cgi-bin/page/archive_download.pl?Language=English&No=1081&FID=551f9fbfa8ed07843cd51831db1b04dd)
-- [Chocolate Doom](https://github.com/chocolate-doom/chocolate-doom)
-- [SDL](https://github.com/libsdl-org/SDL)
-- [SDL_mixer](https://github.com/libsdl-org/SDL_mixer)
