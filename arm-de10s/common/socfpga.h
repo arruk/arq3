@@ -1,0 +1,23 @@
+#ifndef SOCFPGA_H
+#define SOCFPGA_H
+
+#include <stdint.h>
+
+#define SOCFPGA_UART0_BASE 0xFFC02000u
+
+#define SOCFPGA_RSTMGR_BASE 0xFFD05000u
+#define SOCFPGA_RSTMGR_MPUMODRST (SOCFPGA_RSTMGR_BASE + 0x10u)
+#define SOCFPGA_RSTMGR_MPUMODRST_CPU1 (1u << 1)
+
+#define SOCFPGA_SYSMGR_BASE 0xFFD08000u
+#define SOCFPGA_SYSMGR_CPU1STARTADDR (SOCFPGA_SYSMGR_BASE + 0xC4u)
+
+#define SOCFPGA_OCRAM_BASE 0xFFFF0000u
+
+#define PI_CORE0_LOAD_ADDR 0x00100000u
+#define PI_CORE1_LOAD_ADDR 0x00200000u
+
+void socfpga_start_cpu1(uint32_t entry_addr);
+void socfpga_park_current_cpu(void);
+
+#endif
