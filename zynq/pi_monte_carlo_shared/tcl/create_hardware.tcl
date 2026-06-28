@@ -1,17 +1,18 @@
-# Vivado 2017.4: dual-core Zynq PS with a 64 KiB AXI BRAM.
+# Vivado 2025.2: Zynq PS with a 64 KiB AXI BRAM.
 
 set script_dir [file dirname [file normalize [info script]]]
 set project_dir [file normalize [file join $script_dir ..]]
 set build_dir [file join $project_dir build]
 set vivado_dir [file join $build_dir vivado]
-set hw_dir [file join $build_dir hw]
 set project_name pi_monte_carlo
 set bd_name system
 
 file mkdir $build_dir
-file mkdir $hw_dir
 
 set board_parts [lsort [get_board_parts -quiet "digilentinc.com:zybo:*"]]
+if {[llength $board_parts] == 0} {
+    set board_parts [lsort [get_board_parts -quiet "*zybo*"]]
+}
 if {[llength $board_parts] == 0} {
     error "Board part da Zybo nao encontrado. Instale os board files da Digilent."
 }
@@ -113,10 +114,6 @@ if {![file exists $bit_file]} {
     error "Bitstream nao encontrado: $bit_file"
 }
 
-set hwdef_file [file join $hw_dir "${project_name}_hw.hdf"]
-set hdf_file [file join $hw_dir "${project_name}.hdf"]
-write_hwdef -force -file $hwdef_file
-write_sysdef -force -hwdef $hwdef_file -bitfile $bit_file -file $hdf_file
-
-puts "INFO: Hardware e bitstream exportados para $hdf_file"
+puts "INFO: Projeto Vivado criado em $vivado_dir"
+puts "INFO: Bitstream gerado em $bit_file"
 close_project
